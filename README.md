@@ -11,10 +11,17 @@ this code is on a separate release track.
 ## Installation
 
 ```bash
-pip install -e ./python-helpers
+pip install git+https://github.com/nickwatson/bromcom-python-helpers.git@v0.0.1
 ```
 
-`bromcom-api` is a runtime dependency.
+`bromcom-api` is a runtime dependency and is pulled in transitively (pinned to the matching core version).
+
+Submodule install also works if you'd rather vendor the source:
+
+```bash
+git submodule add git@github.com:nickwatson/bromcom-python-helpers.git
+pip install -e ./bromcom-python-helpers
+```
 
 ## Timetables
 
