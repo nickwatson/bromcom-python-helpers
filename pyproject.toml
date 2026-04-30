@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "Optional helpers for the Bromcom Partner Data API 2.0 Python client (timetables)"
 requires-python = ">=3.10"
 dependencies = [
-    "bromcom-api",
+    "bromcom-api @ git+https://github.com/nickwatson/bromcom-python.git@v0.1.0",
 ]
 
 [project.optional-dependencies]
@@ -20,3 +20,10 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/bromcom_helpers"]
+
+# Allow `bromcom-api @ git+https://...` direct reference in dependencies.
+# In monorepo dev, `tool.uv.sources` in the root pyproject.toml redirects this
+# to the local `python/` workspace. In the published artifact, pip will fetch
+# from GitHub directly.
+[tool.hatch.metadata]
+allow-direct-references = true
