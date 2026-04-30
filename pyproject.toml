@@ -1,6 +1,6 @@
 [project]
 name = "bromcom-api-helpers"
-version = "0.1.0"
+version = "0.0.1"
 description = "Optional helpers for the Bromcom Partner Data API 2.0 Python client (timetables)"
 requires-python = ">=3.10"
 dependencies = [
