@@ -448,7 +448,7 @@ class TimetableHelper:
             key = (
                 getattr(e, "week_display_name", None) or getattr(e, "week_number", "1"),
                 e.day_of_week,
-                e.period_display_name,
+                e.period_display_name or "",
             )
             existing = seen.get(key)
             if existing is None or (e.period_start_date or "") > (existing.period_start_date or ""):
@@ -746,7 +746,7 @@ class AsyncTimetableHelper:
             key = (
                 getattr(e, "week_display_name", None) or getattr(e, "week_number", "1"),
                 e.day_of_week,
-                e.period_display_name,
+                e.period_display_name or "",
             )
             existing = seen.get(key)
             if existing is None or (e.period_start_date or "") > (existing.period_start_date or ""):
