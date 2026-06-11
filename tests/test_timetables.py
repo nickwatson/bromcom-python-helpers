@@ -67,6 +67,7 @@ def _live_entry(**overrides):
         student_id=1,
         day_of_week="Monday",
         week_display_name="Week 1",
+        period_name=None,
         period_display_name="P1",
         period_start_date="2026-06-08",
         period_start_time="1900-01-01T09:10:00",
@@ -94,7 +95,8 @@ def _make_helper(timetable_batches):
             state["batch"] += 1
             return timetable_batches[batch] if batch < len(timetable_batches) else []
         if path == "/v2/Staff":
-            return [SimpleNamespace(staff_id=42, staff_code="NW")]
+            # Padded like real API data — output assertions prove trimming
+            return [SimpleNamespace(staff_id=42, staff_code="NW   ")]
         raise AssertionError(f"unexpected path {path}")
 
     http = MagicMock()
@@ -138,3 +140,45 @@ class TestGetLiveMocked:
         assert len(slots) == 1
         assert slots[0].class_name == "NEW"
         assert slots[0].period == ""
+
+    def test_dedup_collapses_padded_period_variants(self):
+        """The sandbox returns the same period both padded and clean — one slot."""
+        helper = _make_helper([[
+            _live_entry(period_display_name="AM             ", period_start_date="2026-06-01", class_name="OLD"),
+            _live_entry(period_display_name="AM", period_start_date="2026-06-08", class_name="NEW"),
+        ]])
+        result = helper.get_live(student_id=1, from_date="2026-06-08")
+        slots = result["Week 1"]["Monday"]
+        assert len(slots) == 1
+        assert slots[0].class_name == "NEW"
+        assert slots[0].period == "AM"
+
+    def test_dedup_keys_on_period_name_not_label(self):
+        """Same periodName with a renamed display label still collapses."""
+        helper = _make_helper([[
+            _live_entry(period_name="1", period_display_name="Period 1", period_start_date="2026-06-01", class_name="OLD"),
+            _live_entry(period_name="1", period_display_name="P1", period_start_date="2026-06-08", class_name="NEW"),
+        ]])
+        result = helper.get_live(student_id=1, from_date="2026-06-08")
+        slots = result["Week 1"]["Monday"]
+        assert len(slots) == 1
+        assert slots[0].class_name == "NEW"
+        assert slots[0].period == "P1"
+
+    def test_period_falls_back_to_period_name(self):
+        helper = _make_helper([[
+            _live_entry(period_name="3   ", period_display_name=None),
+        ]])
+        result = helper.get_live(student_id=1, from_date="2026-06-08")
+        assert result["Week 1"]["Monday"][0].period == "3"
+
+    def test_padded_week_day_and_room_are_cleaned(self):
+        helper = _make_helper([[
+            _live_entry(week_display_name="Week 1  ", day_of_week="Monday ", location_name="   "),
+        ]])
+        result = helper.get_live(student_id=1, from_date="2026-06-08")
+        assert list(result.keys()) == ["Week 1"]
+        assert list(result["Week 1"].keys()) == ["Monday"]
+        slot = result["Week 1"]["Monday"][0]
+        assert slot.room is None
+        assert slot.staff_code == "NW"

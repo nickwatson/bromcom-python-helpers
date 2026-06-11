@@ -67,6 +67,11 @@ def _format_time(s: str | None) -> str:
         return s or ""
 
 
+def _clean(s: Any) -> str:
+    """Trim a possibly-None API string (values often arrive padded with spaces)."""
+    return s.strip() if isinstance(s, str) else ""
+
+
 def _next_weekday(d: date) -> date:
     """Advance to next Monday-Friday if on a weekend."""
     while d.weekday() >= 5:
@@ -81,10 +86,11 @@ def _monday_of(d: date) -> date:
 
 def _derive_period_name(p: Any) -> str:
     """Get period name from periodDisplayName, or derive from calendarModelName."""
-    if p.period_display_name:
-        return p.period_display_name
+    display = _clean(p.period_display_name)
+    if display:
+        return display
     # calendarModelName follows DAY_X_WEEK pattern e.g. 'MON_1_1' or 'MON_AM_1'
-    name = getattr(p, "calendar_model_name", "") or ""
+    name = _clean(getattr(p, "calendar_model_name", None))
     parts = name.split("_")
     if len(parts) >= 2:
         mid = parts[1]
@@ -127,7 +133,7 @@ def _fetch_staff_codes(http: Any, staff_ids: set[int], school_id: int | None = N
     if not staff_ids:
         return {}
     staff_list = http.get("/v2/Staff", school_id=school_id, model=Staff)
-    return {s.staff_id: s.staff_code for s in staff_list if s.staff_id in staff_ids and s.staff_code}
+    return {s.staff_id: code for s in staff_list if s.staff_id in staff_ids and (code := _clean(s.staff_code))}
 
 
 async def _fetch_staff_codes_async(http: Any, staff_ids: set[int], school_id: int | None = None) -> dict[int, str]:
@@ -136,7 +142,7 @@ async def _fetch_staff_codes_async(http: Any, staff_ids: set[int], school_id: in
     if not staff_ids:
         return {}
     staff_list = await http.get("/v2/Staff", school_id=school_id, model=Staff)
-    return {s.staff_id: s.staff_code for s in staff_list if s.staff_id in staff_ids and s.staff_code}
+    return {s.staff_id: code for s in staff_list if s.staff_id in staff_ids and (code := _clean(s.staff_code))}
 
 
 def _fetch_locations(http: Any, location_ids: set[int], school_id: int | None = None) -> dict[int, str]:
@@ -149,7 +155,7 @@ def _fetch_locations(http: Any, location_ids: set[int], school_id: int | None = 
     result = {}
     for loc in locs:
         if loc.location_id in location_ids:
-            name = loc.room_name or loc.location_description or loc.short_code or ""
+            name = _clean(loc.room_name) or _clean(loc.location_description) or _clean(loc.short_code)
             if name and name.upper() != "DEFAULT":
                 result[loc.location_id] = name
     return result
@@ -164,7 +170,7 @@ async def _fetch_locations_async(http: Any, location_ids: set[int], school_id: i
     result = {}
     for loc in locs:
         if loc.location_id in location_ids:
-            name = loc.room_name or loc.location_description or loc.short_code or ""
+            name = _clean(loc.room_name) or _clean(loc.location_description) or _clean(loc.short_code)
             if name and name.upper() != "DEFAULT":
                 result[loc.location_id] = name
     return result
@@ -446,9 +452,10 @@ class TimetableHelper:
         seen: dict[tuple, Any] = {}
         for e in all_entries:
             key = (
-                getattr(e, "week_display_name", None) or getattr(e, "week_number", "1"),
-                e.day_of_week,
-                e.period_display_name or "",
+                _clean(getattr(e, "week_display_name", None)) or getattr(e, "week_number", None) or "1",
+                _clean(e.day_of_week),
+                # Key on the stable period identifier, not the user-facing label
+                _clean(getattr(e, "period_name", None)) or _clean(e.period_display_name),
             )
             existing = seen.get(key)
             if existing is None or (e.period_start_date or "") > (existing.period_start_date or ""):
@@ -471,14 +478,14 @@ class TimetableHelper:
 
             is_cover = bool(getattr(e, "is_cover", 0))
             sid = getattr(e, "staff_id", None)
-            raw_room = getattr(e, "location_name", None)
+            raw_room = _clean(getattr(e, "location_name", None))
             room = raw_room if raw_room and raw_room.upper() != "DEFAULT" else None
             # Use class_name from the entry, not class_staff_room (which has newlines)
             cls_name = getattr(e, "class_name", None) or getattr(e, "class_staff_room", None)
             if cls_name:
                 cls_name = cls_name.replace("\r", "").replace("\n", " ").strip()
             timetable[week][day].append(Slot(
-                period=e.period_display_name or "",
+                period=_clean(e.period_display_name) or _clean(getattr(e, "period_name", None)),
                 start_time=_format_time(e.period_start_time),
                 end_time=_format_time(e.period_end_time),
                 class_name=cls_name,
@@ -744,9 +751,10 @@ class AsyncTimetableHelper:
         seen: dict[tuple, Any] = {}
         for e in all_entries:
             key = (
-                getattr(e, "week_display_name", None) or getattr(e, "week_number", "1"),
-                e.day_of_week,
-                e.period_display_name or "",
+                _clean(getattr(e, "week_display_name", None)) or getattr(e, "week_number", None) or "1",
+                _clean(e.day_of_week),
+                # Key on the stable period identifier, not the user-facing label
+                _clean(getattr(e, "period_name", None)) or _clean(e.period_display_name),
             )
             existing = seen.get(key)
             if existing is None or (e.period_start_date or "") > (existing.period_start_date or ""):
@@ -768,13 +776,13 @@ class AsyncTimetableHelper:
 
             is_cover = bool(getattr(e, "is_cover", 0))
             sid = getattr(e, "staff_id", None)
-            raw_room = getattr(e, "location_name", None)
+            raw_room = _clean(getattr(e, "location_name", None))
             room = raw_room if raw_room and raw_room.upper() != "DEFAULT" else None
             cls_name = getattr(e, "class_name", None) or getattr(e, "class_staff_room", None)
             if cls_name:
                 cls_name = cls_name.replace("\r", "").replace("\n", " ").strip()
             timetable[week][day].append(Slot(
-                period=e.period_display_name or "",
+                period=_clean(e.period_display_name) or _clean(getattr(e, "period_name", None)),
                 start_time=_format_time(e.period_start_time),
                 end_time=_format_time(e.period_end_time),
                 class_name=cls_name,
