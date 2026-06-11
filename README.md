@@ -11,7 +11,7 @@ this code is on a separate release track.
 ## Installation
 
 ```bash
-pip install git+https://github.com/nickwatson/bromcom-python-helpers.git@v0.0.1
+pip install git+https://github.com/nickwatson/bromcom-python-helpers.git@v0.0.3
 ```
 
 `bromcom-api` is a runtime dependency and is pulled in transitively (pinned to the matching core version).
@@ -49,6 +49,12 @@ grid = timetables.get_live(staff_id=456, include_cover=False)
 
 `AsyncTimetableHelper` accepts an `AsyncBromcomClient` and exposes the same
 methods as coroutines.
+
+All string fields in the output are trimmed (the API pads values with trailing
+spaces). Live entries are deduplicated per (week, day, period) — keyed on the
+stable `periodName` so set changes and label renames collapse to the most
+recent entry — while the slot's `period` field shows the trimmed
+`periodDisplayName`, the label users recognise.
 
 **Required endpoints:**
 
